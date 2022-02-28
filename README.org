@@ -1,0 +1,95 @@
+#+title: lambda-macro
+#+author: Volodymyr Ivanov
+#+email: me@funcall.me
+
+** Description
+This is a small reader macro to make writing small lambdas a bit less painful.
+
+** Installing
+Clone this repository into ~\~/quicklisp/local-projects~ and load the
+~lambda-macro~ system via ASDF. At some point, it will also be available on
+Quicklisp.
+
+** Usage
+The simplest lambda is ~#%()~ - it takes no parameters and returns ~NIL~. This
+reader macro obviously supports positional parameters, which look as follows:
+~%1~, ~%2~ and so on (there is no upper limit aside from the maximum size of an
+integer). The numbering starts at 1, not at 0 since it's how Clojure does it,
+and I find it more intuitive anyway. Unlike Clojure, it doesn't support ~%~ as a
+single parameter as it only saves a single character, but does complicate the
+parser.
+
+Here are two examples of a simple lambda with positional arguments only
+#+begin_src lisp
+(mapcar #%(list %1 %2 %3) '(1 4 7) '(2 5 8) '(3 6 9))
+;; => ((1 2 3) (4 5 6) (7 8 9))
+(mapcar #%(list %1 %3) '(1 4 7) '(2 5 8) '(3 6 9))
+;; => ((1 3) (4 6) (7 9))
+;; #%(list %1 %3) is equivalent to
+;; (lambda (%1 %2 %3)
+;;   (declare (ignorable %1 %2 %3))
+;;   (list %1 %3))
+#+end_src
+
+This reader macro also supports optional parameters, which look like this:
+~%?1~, ~%?2~, ~%?3~ and so on. Here's an example of using them:
+#+begin_src lisp
+(let ((fn #%(list %1 %2 %?2)))
+  (mapcar fn '(1 2 3) '(4 5 6)) ; => ((1 4 NIL) (2 5 NIL) (3 6 NIL))
+  (mapcar fn '(1 2 3) '(4 5 6) '(7 8 9)) ; => ((1 4 NIL) (2 5 NIL) (3 6 NIL))
+  (mapcar fn '(1 2 3) '(4 5 6) '(7 8 9) '(10 11 12)) ; => ((1 2 3) (4 5 6) (10 11 12))
+; (mapcar fn '(1 2 3) '(4 5 6) '(7 8 9) '(10 11 12) '(13 14 15)) ; error
+)
+;; #%(list %1 %2 %?2) expands into
+;; (lambda (%1 %2 &optional %?1 %?2)
+;;   (declare (ignorable %1 %2 %?1 %?2))
+;;   (list %1 %2 %?2))
+#+end_src
+
+It also provides support for a rest parameter with the same syntax as Clojure:
+~%&~. Here's an example of using it
+#+begin_src lisp
+(let ((fn #%(apply #'+ %&)))
+  (mapcar fn '(1 2 3)) ; => (1 2 3)
+  (mapcar fn '(1 2 3) '(4 5 6)) ; => (5 7 9)
+  (mapcar fn '(1 2 3) '(4 5 6) '(7 8 9)) ; => (12 15 18)
+)
+;; #%(apply #'+ %&) expands into
+;; (lambda (&rest %&)
+;;   (declare (ignorable %&))
+;;   (apply #'+ %&))
+#+end_src
+
+Keyword parameters are also supported. The syntax is as follows: ~&~, followed
+by the name of the keyword parameter. Unlike every other kind of parameter, the
+~&~ is not included in the name after reading.
+#+begin_src lisp
+(let ((fn #%(list %a %b %c)))
+  (funcall fn :a 1) ; => (1 NIL NIL)
+  (funcall fn :a 1 :c 2) ; => (1 NIL 2)
+  (funcall fn :a 1 :c 3 :b 2) ; (1 2 3)
+; (funcall fn :a 1 :c 3 :b 2 :d 4) ; error
+)
+;; #%(list %a %b %c) expands into
+;; (lambda (&key a b c)
+;;   (declare (ignorable a b c))
+;;   (list a b c))
+#+end_src
+
+~&allow-other-keys~ can be added by following the percent signw with a colon,
+like this:
+#+begin_src lisp
+(let ((fn #%:(list %a %b %c)))
+  (funcall fn :a 1) ; => (1 NIL NIL)
+  (funcall fn :a 1 :c 2) ; => (1 NIL 2)
+  (funcall fn :a 1 :c 3 :b 2) ; => (1 2 3)
+  (funcall fn :a 1 :c 3 :b 2 :d 4) ; => (1 2 3)
+)
+;; #%:(list %a %b %c) expands into
+;; (lambda (&key a b c &allow-other-keys)
+;;   (declare (ignorable a b c))
+;;   (list a b c))
+#+end_src
+
+~&aux~ parameters aren't supported (maybe I'll add them later if I find a way to
+do it properly)
