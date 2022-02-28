@@ -5,9 +5,9 @@
 ** Description
 This is a small reader macro to make writing small lambdas a bit less painful.
 
-** Installing
-Clone this repository into ~\~/quicklisp/local-projects~ and load the
-~lambda-macro~ system via ASDF. At some point, it will also be available on
+** Installation
+Clone this repository into the directory with your systems and load the
+~lambda-macro~ system via ASDF. At some point, this will also be available on
 Quicklisp.
 
 ** Usage
