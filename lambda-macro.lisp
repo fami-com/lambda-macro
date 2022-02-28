@@ -1,6 +1,6 @@
 (defpackage #:lambda-macro
   (:use :cl)
-  (:export #:rt))
+  (:export #:lambda-macro))
 
 (in-package #:lambda-macro)
 
@@ -9,7 +9,7 @@
 (defun make-lambda (positional-param-count optional-param-count
                     keyword-params rest-present? allow-other-keys?
                     body
-                    &key (prefix-char #\%))
+                    &key (prefix-char #\$))
   (let* ((positional (loop :for i :from 1 :upto positional-param-count
                           :collect (intern (format nil "~c~a" prefix-char i))))
          (optional (loop :for i :from 1 :upto optional-param-count
@@ -18,7 +18,8 @@
                         ,@(when optional
                             `(,(intern "&OPTIONAL") ,@optional))
                         ,@(when rest-present?
-                            `(,(intern "&REST") ,(intern "%&")))
+                            `(,(intern "&REST") ,(intern
+                                                  (format nil "~c&" prefix-char))))
                         ,@(when (or keyword-params allow-other-keys?)
                             `(,(intern "&KEY") ,@keyword-params))
                         ,@(when allow-other-keys?
@@ -27,7 +28,8 @@
                                            ,@optional
                                            ,@keyword-params
                                            ,@(when rest-present?
-                                               `(,(intern "%&")))))))
+                                               `(,(intern
+                                                   (format nil "~c&" prefix-char))))))))
     `(lambda ,lambda-list ,ignore-list ,body)))
 
 (defun read-lambda (stream subchar char)
@@ -35,14 +37,14 @@
   (let ((*readtable* (copy-readtable))
         (positional-param-count 0) (optional-param-count 0)
         keyword-params rest-present? allow-other-keys?)
-    (labels ((|read-%| (stream char)
+    (labels ((|read-$| (stream char)
                (declare (ignore char))
                (let ((c (peek-char nil stream t nil t)))
                  (cond
                    ((char= c #\&)
                     (read-char stream t nil t)
                     (setf rest-present? t)
-                    (intern "%&"))
+                    (intern "$&"))
                    ((char= c #\?)
                     (read-char stream t nil t)
                     (let ((cn (peek-char nil stream t nil t)))
@@ -50,12 +52,12 @@
                         (error "Bad"))
                       (let ((num (read stream t nil t)))
                         (maxf optional-param-count num)
-                        (intern (format nil "%?~a" num)))))
+                        (intern (format nil "$?~a" num)))))
                    (t
                     (let ((data (read stream t nil t)))
                       (cond ((integerp data)
                              (maxf positional-param-count data)
-                             (intern (format nil "%~a" data)))
+                             (intern (format nil "$~a" data)))
                             ((and (symbolp data) (not (keywordp data)))
                              (push data keyword-params)
                              data)
@@ -66,16 +68,15 @@
                  (#\( (return-from read-extra-params)))
                (read-char stream t nil t)
                t))
-      (set-macro-character #\% #'|read-%|)
+      (set-macro-character #\$ #'|read-$|)
       (loop :for c := (peek-char nil stream t nil t)
             :while (read-extra-params c))
       (let* ((body (read stream t nil t))
              (res (make-lambda positional-param-count optional-param-count
                                (nreverse keyword-params) rest-present?
-                               allow-other-keys?body)))
+                               allow-other-keys? body)))
         res))))
 
 (named-readtables:defreadtable lambda-macro
   (:merge :standard)
-  (:macro-char #\% :dispatch)
-  (:dispatch-macro-char #\# #\% #'read-lambda))
+  (:dispatch-macro-char #\# #\$ #'read-lambda))
