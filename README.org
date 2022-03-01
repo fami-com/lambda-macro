@@ -60,9 +60,9 @@ It also provides support for a rest parameter with the same syntax as Clojure:
 ;;   (apply #'+ $&))
 #+end_src
 
-Keyword parameters are also supported. The syntax is as follows: ~&~, followed
+Keyword parameters are also supported. The syntax is as follows: ~$~, followed
 by the name of the keyword parameter. Unlike every other kind of parameter, the
-~&~ is not included in the name after reading.
+~$~ is not included in the name after reading.
 #+begin_src lisp
 (let ((fn #$(list $a $b $c)))
   (funcall fn :a 1) ; => (1 NIL NIL)
